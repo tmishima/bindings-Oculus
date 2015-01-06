@@ -14,9 +14,7 @@ import Foreign.Marshal.Alloc
 import Data.Word
 import Bindings.OculusRift.Types
 
---import Graphics.UI.GLFW (HWND)
-import Debug.Trace
-
+--import Debug.Trace
 
 -- |
 -- convert ovrBool to Bool
@@ -131,7 +129,6 @@ ovrHmd_CreateDebug (OvrHmdType t) = c_ovrHmd_CreateDebug $ fromIntegral t
 ovrHmd_GetLastError :: OvrHmd -> IO String
 ovrHmd_GetLastError hmd = peekCString =<< c_ovrHmd_GetLastError hmd
 
-{-
 -- | Platform specific function to specify the application window whose output will be 
 -- displayed on the HMD. Only used if the ovrHmdCap_ExtendDesktop flag is false.
 -- Windows: SwapChain associated with this window will be displayed on the HMD.
@@ -142,7 +139,7 @@ ovrHmd_GetLastError hmd = peekCString =<< c_ovrHmd_GetLastError hmd
 --
 ovrHmd_AttachToWindow :: OvrHmd -> HWND -> Maybe OvrRecti -> Maybe OvrRecti
                       -> IO Bool 
-ovrHmd_AttachToWindow hmd window destMirrorRect sourceRenderTargetRect =
+ovrHmd_AttachToWindow hmd win destMirrorRect sourceRenderTargetRect =
   alloca $ \ destMirrorRect' -> 
   alloca $ \ sourceRenderTargetRect' -> do
     pd <- case destMirrorRect of
@@ -152,8 +149,8 @@ ovrHmd_AttachToWindow hmd window destMirrorRect sourceRenderTargetRect =
             Just s -> poke sourceRenderTargetRect' s
                         >> return sourceRenderTargetRect'
             Nothing -> return nullPtr
-    fmap ovrBool2Bool (c_ovrHmd_AttachToWindow hmd window pd ps)
--}
+    fmap ovrBool2Bool (c_ovrHmd_AttachToWindow hmd win pd ps)
+
 -------------------------------------------------------------------------------------
 
 -- | Returns capability bits that are enabled at this time as described by ovrHmdCaps.
@@ -332,18 +329,18 @@ ovrHmd_EndFrame hmd renderPose eyeTexture = do
 --
 ovrHmd_GetEyePoses  :: OvrHmd -> Word32 -> [OvrVector3f]
                     -> IO [OvrPosef]
-ovrHmd_GetEyePoses hmd frameIndex hmdToEyeViewOffset = 
+ovrHmd_GetEyePoses hmd frameIndex hmdToEyeViewOffset' = 
   alloca $ \ viewOffset -> do
-    pokeArray viewOffset hmdToEyeViewOffset
+    pokeArray viewOffset hmdToEyeViewOffset'
     peekArray 2 =<<
       c_ovrHmd_GetEyePoses hmd (CUInt frameIndex) viewOffset nullPtr
 
 ovrHmd_GetEyePosesWithTrackingState :: OvrHmd -> Word32 -> [OvrVector3f]
                     -> IO (OvrTrackingState, [OvrPosef])
-ovrHmd_GetEyePosesWithTrackingState hmd frameIndex hmdToEyeViewOffset = 
+ovrHmd_GetEyePosesWithTrackingState hmd frameIndex hmdToEyeViewOffset' = 
   alloca $ \ viewOffset ->
   alloca $ \ st -> do
-    pokeArray viewOffset hmdToEyeViewOffset
+    pokeArray viewOffset hmdToEyeViewOffset'
     po <- c_ovrHmd_GetEyePoses hmd (CUInt frameIndex) viewOffset st
     status <- peek st
     pose <- peekArray 2 po
@@ -450,9 +447,9 @@ ovrHmd_CreateDistortionMesh hmd eyeType pOvrPose
 --
 ovrMatrix4f_Projection :: OvrFovPort -> Float -> Float -> Bool
                        -> IO OvrMatrix4f
-ovrMatrix4f_Projection fov znear zfar rightHanded = peek =<< 
+ovrMatrix4f_Projection fov' znear zfar rightHanded = peek =<< 
   (alloca $ \ f' -> do
-    poke f' fov 
+    poke f' fov' 
     c_ovrMatrix4f_Projection f' (CFloat znear) (CFloat zfar)
                                 (bool2OvrBool rightHanded))
 

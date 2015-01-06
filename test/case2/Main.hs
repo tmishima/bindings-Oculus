@@ -3,6 +3,7 @@
 -- License : Apache-2.0
 --
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP, ForeignFunctionInterface #-}
 
 module Main where
 
@@ -21,35 +22,39 @@ import Control.Concurrent (threadDelay)
 
 import GLFWWindow
 import GLView
---import Graphics.UI.GLFW (getWindowHandle,getWinDC)
+import Bindings.OculusRift.Types 
+
 import Graphics.Rendering.OpenGL as GL
 import Graphics.GLUtil
 import Foreign.Ptr (nullPtr)
 import Linear.V4
 
---import Foreign.Ptr
+-------------
+import Bindings.Utils.Windows
+-------------
+
+winSize = (1920,1080)
 
 main :: IO ()
 main = bracket
   (do
     !b <- ovr_Initialize
-    !ghmd <- initGLFW (1920,1080) "oculus test" False
+    !ghmd <- initGLFW winSize "oculus test" False
     return (b,ghmd))
   (\ (_,ghmd) -> do
             ovr_Shutdown 
             exitGLFW ghmd
             traceIO "exit")
-  (\ (b,ghmd) -> if b == True
+  (\ (b,ghmd) -> if b 
     then do
       traceIO "init OK"
       bracket
         (do
           !maxIdx <- ovrHmd_Detect
-          traceIO $ "detect = " ++ (show maxIdx)
+          traceIO $ "detect = " ++ show maxIdx
           !hmd <- ovrHmd_Create (maxIdx - 1)
           return hmd)
-        (\ hmd' -> do
-          if isJust hmd' 
+        (\ hmd' -> if isJust hmd' 
             then do
               ovrHmd_Destroy $ fromJust hmd'
               traceIO "destroy hmd"
@@ -63,7 +68,7 @@ mainProcess _ Nothing = traceIO "create hmd NG"
 mainProcess ghmd hmd' = do
   !glhdl <- initGL
   let hmd = fromJust hmd'
-  traceIO $ "create hmd OK : " ++ (show hmd)
+  traceIO $ "create hmd OK : " ++ show hmd
   !msg <- ovrHmd_GetLastError hmd
   traceIO $ "GetLastError = " ++ msg ++ " Msg End"
   traceIO " == Print HmdDesc =="
@@ -75,23 +80,23 @@ mainProcess ghmd hmd' = do
                .|. ovrTrackingCap_MagYawCorrection
                .|. ovrTrackingCap_Position)
                ovrTrackingCap_None
-  traceIO $ "ConfigureTracking : " ++ (show r)
+  traceIO $ "ConfigureTracking : " ++ show r
   -- 
-  -- !hwnd <- getWindowHandle 
-  --  =<< fmap fromJust (getWindowHdl ghmd)
+  !hwnd <- getWindowHandle "oculus test" 
+  traceIO $ "windowHandle : " ++ show hwnd
   -- !hdc <- getWinDC hwnd
-  -- !ba <- ovrHmd_AttachToWindow hmd hwnd
-  --                            Nothing Nothing 
-  --traceIO $ "AttachToWindow : " ++ (show (ba,hwnd))
+  !ba <- ovrHmd_AttachToWindow hmd hwnd
+                               Nothing Nothing 
+  traceIO $ "AttachToWindow : " ++ show (ba,hwnd)
   
   recommenedTex0Size <- ovrHmd_GetDefaultFovTextureSize
                           hmd ovrEye_Left 1.0
   recommenedTex1Size <- ovrHmd_GetDefaultFovTextureSize
                           hmd ovrEye_Right 1.0
   traceIO $ "recommentedTexSize L : "
-    ++ (show recommenedTex0Size)
+    ++ show recommenedTex0Size
     ++ " R : "
-    ++ (show recommenedTex1Size)
+    ++ show recommenedTex1Size
   let !renderTargetSizeW = (si_w recommenedTex0Size)
                         + (si_w recommenedTex1Size)
       !renderTargetSizeH = max (si_h recommenedTex0Size)
@@ -107,34 +112,37 @@ mainProcess ghmd hmd' = do
                    ovrRenderAPI_OpenGL
                    (resolution hmdDesc) 
                    0 --  1
-      !apiconf = OvrRenderAPIConfig hd -- (Just hwnd) (Just hdc)
-      !caps =     ovrDistortionCap_Chromatic
-         --    .|. ovrDistortionCap_TimeWarp
-             .|. ovrDistortionCap_Vignette
+      !apiconf = OvrRenderAPIConfig hd (Just hwnd) Nothing --  (Just hdc)
+      !caps =
+                 ovrDistortionCap_Vignette
+         --    .|. ovrDistortionCap_SRGB
+             .|. ovrDistortionCap_Overdrive 
+             .|. ovrDistortionCap_TimeWarp
+             .|. ovrDistortionCap_ProfileNoTimewarpSpinWaits 
+             .|. ovrDistortionCap_HqDistortion
+         --    .|. ovrDistortionCap_ComputeShader
+         --
+         --    .|. ovrDistortionCap_Chromatic
          --    .|. ovrDistortionCap_NoRestore
          --    .|. ovrDistortionCap_FlipInput 
-         --    .|. ovrDistortionCap_SRGB
-         --    .|. ovrDistortionCap_Overdrive 
-         --    .|. ovrDistortionCap_HqDistortion
-         --    .|. ovrDistortionCap_ProfileNoTimewarpSpinWaits 
-  traceIO $ "OvrEyeTexture : " ++ (show eyeTexture)
-  traceIO $ "OvrRenderAPIConfigHeader : " ++ (show hd)
-  traceIO $ "render caps : " ++ (show caps)
+  traceIO $ "OvrEyeTexture : " ++ show eyeTexture
+  traceIO $ "OvrRenderAPIConfigHeader : " ++ show hd
+  traceIO $ "render caps : " ++ show caps
   !lfv <- ovrHmd_GetDefaultFov hmd ovrEye_Left
   !rfv <- ovrHmd_GetDefaultFov hmd ovrEye_Right
   !(bret, eyeRD) <- ovrHmd_ConfigureRendering hmd
                     (Just apiconf) caps [lfv,rfv]
-  traceIO $ "ConfigureRendering : " ++ (show (bret,eyeRD))
+  traceIO $ "ConfigureRendering : " ++ show (bret,eyeRD)
   --
   ovrHmd_SetEnabledCaps hmd ( 
    --     ovrHmdCap_Present          
    -- .|. ovrHmdCap_Available
    -- .|. ovrHmdCap_Captured
-     ovrHmdCap_ExtendDesktop 
-   -- .|. ovrHmdCap_NoMirrorToWindow
+   --  ovrHmdCap_ExtendDesktop 
    -- .|. ovrHmdCap_DisplayOff
-   -- .|. ovrHmdCap_LowPersistence
-   -- .|. ovrHmdCap_DynamicPrediction
+        ovrHmdCap_LowPersistence
+    .|. ovrHmdCap_DynamicPrediction
+   -- .|. ovrHmdCap_NoMirrorToWindow
    -- .|. ovrHmdCap_NoVSync          
     )
   -- !tis <- ovr_GetTimeInSeconds
@@ -203,6 +211,7 @@ genEyeTextureData tex width height =
 
 mainLoop hmd glfwHdl glhdl (eyeTexture,texobj,fbo) eyeRD tex frameNo = do
   pollGLFW
+  --threadDelay   10000
   --threadDelay 1000
   --threadDelay 1000000
   dt <- getDeltTime glfwHdl
@@ -212,7 +221,8 @@ mainLoop hmd glfwHdl glhdl (eyeTexture,texobj,fbo) eyeRD tex frameNo = do
   --traceIO $ show ts
   ovrHmd_BeginFrame hmd frameNo
   bindFramebuffer Framebuffer $= fbo
-  withViewport (Position 0 0) (Size 1920 1080) $
+  let (winW,winH) = winSize
+  withViewport (Position 0 0) (Size (fromIntegral winW) (fromIntegral winH)) $
     clear [GL.ColorBuffer, GL.DepthBuffer]
   (poseL:poseR:_) <- ovrHmd_GetEyePoses hmd frameNo $ map hmdToEyeViewOffset eyeRD 
   renderPose <- forM [(ovrEye_Left,0,poseL),(ovrEye_Right,1,poseR)]

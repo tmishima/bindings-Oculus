@@ -15,7 +15,10 @@ import Foreign.Marshal.Array
 import Data.Word
 import Data.Bits 
 
---import Graphics.UI.GLFW (HWND,HDC)
+data VoidPtr = VoidPtr
+  deriving (Show,Eq)
+type HWND = Ptr VoidPtr
+type HDC = Ptr VoidPtr
 
 type OvrBool = CChar
 
@@ -176,7 +179,7 @@ instance Storable OvrPoseStatef where
     la <- (#peek ovrPoseStatef, LinearAcceleration) ptr
     tis <- (#peek ovrPoseStatef, TimeInSeconds) ptr 
     return $ OvrPoseStatef tp av lv aa la tis 
-  poke ptr _ = return ()
+  poke _ _ = return ()
 
 data OvrFovPort = OvrFovPort
   { upTan :: Float
@@ -263,6 +266,7 @@ newtype OvrTrackingCaps = OvrTrackingCaps { _trackingCaps :: Word32 }
     ovrTrackingCap_Position         = ovrTrackingCap_Position,
     ovrTrackingCap_Idle             = ovrTrackingCap_Idle
  }
+ovrTrackingCap_None :: OvrTrackingCaps
 ovrTrackingCap_None = OvrTrackingCaps 0
 instance Bits OvrTrackingCaps where
   (OvrTrackingCaps a) .|. (OvrTrackingCaps b) = OvrTrackingCaps (a .|. b)
@@ -293,6 +297,8 @@ newtype OvrDistortionCaps = OvrDistortionCaps { _distortion :: Word32 }
     ovrDistortionCap_SRGB       = ovrDistortionCap_SRGB,
     ovrDistortionCap_Overdrive  = ovrDistortionCap_Overdrive,
     ovrDistortionCap_HqDistortion = ovrDistortionCap_HqDistortion,
+    ovrDistortionCap_LinuxDevFullscreen = ovrDistortionCap_LinuxDevFullscreen,
+    ovrDistortionCap_ComputeShader = ovrDistortionCap_ComputeShader,
     ovrDistortionCap_ProfileNoTimewarpSpinWaits = ovrDistortionCap_ProfileNoTimewarpSpinWaits
  }
 instance Bits OvrDistortionCaps where
@@ -383,7 +389,7 @@ instance Storable OvrHmdDesc where
 
     hc <- toWord ((#peek ovrHmdDesc, HmdCaps) ptr :: IO CUInt)
     tc <- toWord ((#peek ovrHmdDesc, TrackingCaps) ptr :: IO CUInt)
-    dc <- toWord ((#peek ovrHmdDesc, DistortionCaps) ptr :: IO CUInt)
+    dic <- toWord ((#peek ovrHmdDesc, DistortionCaps) ptr :: IO CUInt)
 
     def <- peekArray oec (ptr `plusPtr` (#offset ovrHmdDesc, DefaultEyeFov))
     mef <- peekArray oec (ptr `plusPtr` (#offset ovrHmdDesc, MaxEyeFov) )
@@ -393,7 +399,7 @@ instance Storable OvrHmdDesc where
     ddn <- peekCString =<< ((#peek ovrHmdDesc, DisplayDeviceName) ptr)
     di <- fmap fromIntegral ((#peek ovrHmdDesc, DisplayId) ptr :: IO CInt)
     return $ OvrHmdDesc t pn m vi pid sn fm fn hfir vfir nzim fzim
-                        hc tc dc def mef ero r wp ddn di
+                        hc tc dic def mef ero r wp ddn di
     where
       oec = fromIntegral $ (\ (OvrEyeType n) -> n) ovrEye_Count
       toInt = fmap fromIntegral
@@ -470,7 +476,7 @@ instance Storable OvrTrackingState where
     sf <- fmap fromIntegral
                ((#peek ovrTrackingState, StatusFlags) ptr :: IO CUInt)
     return $ OvrTrackingState hp cp lcp rsd sf
-  poke ptr _ = return () 
+  poke _ _ = return () 
 
     
 data OvrFrameTiming = OvrFrameTiming
@@ -560,17 +566,16 @@ instance Storable OvrRenderAPIConfigHeader where
 
 data OvrRenderAPIConfig = OvrRenderAPIConfig -- for OpenGL 
   { header :: OvrRenderAPIConfigHeader
-  -- , window :: Maybe HWND
-  -- , dc :: Maybe HDC
+  , window :: Maybe HWND
+  , dc :: Maybe HDC
   }
 instance Storable OvrRenderAPIConfig where
   sizeOf _ = (#size ovrRenderAPIConfig)
   alignment = sizeOf 
   peek = undefined
-  --poke ptr (OvrRenderAPIConfig h w d) = do
-  poke ptr (OvrRenderAPIConfig h ) = do
+  poke ptr (OvrRenderAPIConfig h w d) = do
+  --poke ptr (OvrRenderAPIConfig h ) = do
     (#poke ovrRenderAPIConfig, Header) ptr h 
-    {-
     (#poke ovrRenderAPIConfig, PlatformData[0]) ptr $
       case w of
         Just w' -> w'
@@ -579,7 +584,6 @@ instance Storable OvrRenderAPIConfig where
       case d of
         Just d' -> d'
         Nothing -> nullPtr
-     -}
     (#poke ovrRenderAPIConfig, PlatformData[0]) ptr nullPtr 
     (#poke ovrRenderAPIConfig, PlatformData[1]) ptr nullPtr 
     (#poke ovrRenderAPIConfig, PlatformData[2]) ptr nullPtr 
@@ -649,9 +653,8 @@ foreign import ccall unsafe "_ovrHmd_CreateDebug" c_ovrHmd_CreateDebug :: CInt -
 
 foreign import ccall unsafe "_ovrHmd_GetLastError" c_ovrHmd_GetLastError :: OvrHmd -> IO CString
 
-{-
 foreign import ccall unsafe "_ovrHmd_AttachToWindow" c_ovrHmd_AttachToWindow :: OvrHmd -> HWND -> Ptr OvrRecti -> Ptr OvrRecti -> IO OvrBool 
--}
+
 -------------------------------------------------------------------------------------
 
 foreign import ccall unsafe "_ovrHmd_GetEnabledCaps" c_ovrHmd_GetEnabledCaps :: OvrHmd -> IO CUInt

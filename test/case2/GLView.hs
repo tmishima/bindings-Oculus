@@ -40,15 +40,15 @@ initGL = do
   -- load objects
   qvaoR <- makeVAO $ do
     print "make cube Vao"
-    makeBuffer ArrayBuffer cubeVert
+    _ <- makeBuffer ArrayBuffer cubeVert
     enableAttrib spR "VertexPosition"
     setAttrib spR "VertexPosition" ToFloat (VertexArrayDescriptor 3 Float 0 offset0)
 
-    makeBuffer ArrayBuffer cubeNormal
+    _ <- makeBuffer ArrayBuffer cubeNormal
     enableAttrib spR "VertexNormal"
     setAttrib spR "VertexNormal" ToFloat (VertexArrayDescriptor 3 Float 0 offset0)
 
-    makeBuffer ArrayBuffer cubeCoord
+    _ <- makeBuffer ArrayBuffer cubeCoord
     enableAttrib spR "VertexCoord"
     setAttrib spR "VertexCoord" ToFloat (VertexArrayDescriptor 2 Float 0 offset0)
 
@@ -56,15 +56,15 @@ initGL = do
 
   pvaoR <- makeVAO $ do
     print "make plate Vao"
-    makeBuffer ArrayBuffer plateVert
+    _ <- makeBuffer ArrayBuffer plateVert
     enableAttrib spR "VertexPosition"
     setAttrib spR "VertexPosition" ToFloat (VertexArrayDescriptor 3 Float 0 offset0)
 
-    makeBuffer ArrayBuffer plateNorm
+    _ <- makeBuffer ArrayBuffer plateNorm
     enableAttrib spR "VertexNormal"
     setAttrib spR "VertexNormal" ToFloat (VertexArrayDescriptor 3 Float 0 offset0)
 
-    makeBuffer ArrayBuffer plateCoord
+    _ <- makeBuffer ArrayBuffer plateCoord
     enableAttrib spR "VertexCoord"
     setAttrib spR "VertexCoord" ToFloat (VertexArrayDescriptor 2 Float 0 offset0)
 
@@ -74,40 +74,28 @@ initGL = do
 render :: (ShaderProgram, GL.VertexArrayObject, GL.VertexArrayObject)
        -> TextureObject -> M44 GLfloat -> (GLfloat,GLfloat,GLfloat,GLfloat)
        -> IO ()
-render (shprgR,pvaoR,qvaoR) tex proj (qx,qy,qz,qw) = do
+render (shprgR,pvaoR,qvaoR) tex proj (qx,qy,qz,_) = do
   GL.clientState GL.VertexArray $= GL.Enabled
   GL.currentProgram GL.$= Just (program shprgR)
-  --let dpMat = projectionMatrix (deg2rad 15) 1.0 80.0 (120::GLfloat)
-      --dvMat = camMatrix $ tilt (-135::GLfloat)
-      --                  $ dolly (V3 0 80 (-80::GLfloat))
-      --                  fpsCamera
   let pMat = proj -- projectionMatrix (deg2rad 60) 1.0 0.1 (40::GLfloat)
-      vMat = camMatrix $ tilt (180*qx)
-                       $ pan (180*qy)
-                       $ dolly (V3 0 3 (10::GLfloat))
-                       $ pan ( (fromIntegral deg) / 10.0 )
-                       fpsCamera
-      bMat = V4 (V4 0.5 0.0 0.0 0.5)
-                (V4 0.0 0.5 0.0 0.5)
-                (V4 0.0 0.0 0.5 0.5)
-                (V4 0.0 0.0 0.0 1.0)
+      vMatX = camMatrix $ tilt (180*qx) fpsCamera
+      vMatY = camMatrix $ pan (180*qy) fpsCamera
+      vMatZ = camMatrix $ roll (-180*qz) fpsCamera
+      vMatIni = camMatrix $ dolly (V3 0 3 (10::GLfloat))
+                            fpsCamera
       mMat = V4 (V4 1.0 0.0 0.0 0.0)
                 (V4 0.0 1.0 0.0 0.0)
                 (V4 0.0 0.0 1.0 0.0)
                 (V4 0.0 0.0 0.0 1.0)
-      mvpMat = pMat !*! vMat !*! mMat
-      --tMat = bMat !*! dpMat !*! dvMat -- !*! mMat
-      deg = 30
-
+      --mvpMat = pMat !*! (vMatX !+! vMatY) !*! vMatIni !*! mMat
+      --mvpMat = pMat !*! vMatIni !*! (vMatX !+! vMatY) !*! mMat
+      mvpMat = pMat !*! vMatIni !*! (vMatX !+! vMatY !+! vMatZ) !*! mMat
 
   setUniform shprgR "mvpMatrix" mvpMat
-  --setUniform shprgR "tMatrix" tMat
   setUniform shprgR "TexMap" (TextureUnit 0)
-  --setUniform shprgR "ShadowMap" (TextureUnit 1)
 
   cullFace $= Just Back  --Just Front Just FrontAndBack -- 
 
-  --withTexturesAt Texture2D [(tex,0),(tex,1)] $ do
   withTexturesAt Texture2D [(tex,0)] $ do
     withVAO qvaoR $ 
       drawArrays Quads 0 $ fromIntegral $ length cubeVert

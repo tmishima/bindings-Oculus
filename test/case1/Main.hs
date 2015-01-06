@@ -104,7 +104,7 @@ mainProcess ghmd hmd' = do
                    ovrRenderAPI_OpenGL
                    (resolution hmdDesc) 
                    0 --  1
-      !apiconf = OvrRenderAPIConfig hd -- (Just hwnd) (Just hdc)
+      !apiconf = OvrRenderAPIConfig hd Nothing Nothing -- (Just hwnd) (Just hdc)
       !caps =     ovrDistortionCap_Chromatic
              .|. ovrDistortionCap_TimeWarp
              .|. ovrDistortionCap_Vignette
@@ -127,10 +127,10 @@ mainProcess ghmd hmd' = do
    --     ovrHmdCap_Present          
    -- .|. ovrHmdCap_Available
    -- .|. ovrHmdCap_Captured
-   -- .|. ovrHmdCap_ExtendDesktop 
+     ovrHmdCap_ExtendDesktop 
    -- .|. ovrHmdCap_NoMirrorToWindow
    -- .|. ovrHmdCap_DisplayOff
-     ovrHmdCap_LowPersistence
+    .|. ovrHmdCap_LowPersistence
     .|. ovrHmdCap_DynamicPrediction
    -- .|. ovrHmdCap_NoVSync          
     )
